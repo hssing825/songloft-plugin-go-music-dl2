@@ -117,9 +117,14 @@ export function gmdFetch(url, opts = {}) {
   return fetch(url, { credentials: 'omit', ...opts })
 }
 
-// 判断 fetch 失败是否为网络层错误（地址错误/服务未启动/CORS 等），便于给出友好提示
+// 判断 fetch 失败是否为网络层错误（地址错误/服务未启动/CORS 等），便于给出友好提示。
+// 注意：不能只看 e.name === 'TypeError'——任何 TypeError（如 xxx.find is not a function）
+// 都会被误判为网络错误，导致代码 bug 伪装成「请检查服务地址」；必须匹配 fetch 在
+// 各浏览器下的真实网络异常文案（Chrome: Failed to fetch / Firefox: NetworkError... /
+// Safari: Load failed）。
 export function isNetworkError(e) {
-  return !!e && (e.name === 'TypeError' || /failed to fetch|network request failed/i.test(e.message || ''))
+  const msg = (e && e.message) || ''
+  return /failed to fetch|networkerror|network request failed|load failed/i.test(msg)
 }
 
 // 失败原因分类：网络 / 鉴权 / 音源失效 / 未知

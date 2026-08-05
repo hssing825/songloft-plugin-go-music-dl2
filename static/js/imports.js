@@ -102,14 +102,21 @@ export function closeImportPanel() {
   document.removeEventListener('keydown', onImportPanelEsc, true)
 }
 
+// 宿主 /playlists 返回结构不固定（可能是数组，也可能是 { playlists: [...] }），
+// 统一归一化为数组，避免把对象存入 store 后调用 .find/.push 抛 TypeError
+function toPlaylistArray(result) {
+  if (Array.isArray(result)) return result
+  if (result && Array.isArray(result.playlists)) return result.playlists
+  return []
+}
+
 export async function loadImportPlaylists() {
   const listEl = document.getElementById('importPlaylistList')
   if (!listEl) return
   listEl.innerHTML = '<div class="empty-state">加载中…</div>'
   try {
     const result = await Host.playlists.list()
-    store.importPlaylists =
-      Array.isArray(result) ? result : (result && result.playlists) || []
+    store.importPlaylists = toPlaylistArray(result)
     renderImportPlaylistList()
   } catch (e) {
     if (listEl) listEl.innerHTML = `<div class="empty-state">歌单加载失败：${escapeHtml(friendlyError(e, '加载失败'))}</div>`
@@ -572,7 +579,9 @@ export async function importCollectionAsPlaylist(pl, songs) {
     
     if (!store.importPlaylists || !store.importPlaylists.length) {
       try {
-        store.importPlaylists = (await Host.playlists.list()) || []
+        // 必须经 toPlaylistArray 归一化：list() 返回的是 { playlists } 对象，
+        // 直接赋值会导致后面 .find is not a function 报错
+        store.importPlaylists = toPlaylistArray(await Host.playlists.list())
       } catch (e) {}
     }
     
