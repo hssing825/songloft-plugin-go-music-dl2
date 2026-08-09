@@ -6,6 +6,10 @@ export interface GoMusicDlConfig {
   baseUrl: string
   /** 外网访问时前端使用的地址（可选）。当主程序通过公网域名/IP 被外网访问时，前端自动改用此地址直连 go-music-dl；留空则内外网都用 baseUrl */
   externalBaseUrl?: string
+  /** 对外可达的 Songloft 主机地址（音箱访问本插件 /stream 路由用，可选）。
+   *  留空则自动推导（baseUrl host / getHostUrl / 网卡地址），但自动推导在
+   *  部分运行时只能拿到回环地址，此时音箱仍无法播放。形如 http://192.168.1.190:58091。 */
+  serverHost?: string
   /** 参与搜索的音源列表 */
   sources: string[]
   /** 请求超时时间（毫秒），目前仅作记录，沙箱内未强制中断 */
@@ -39,6 +43,11 @@ export function normalizeBaseUrl(raw: string): string {
   return u
 }
 
+/** 归一化对外可达地址：去首尾空白与结尾斜杠（不做 /music 补全，因为这是 Songloft 主机地址，不是 go-music-dl 后端地址）。 */
+export function normalizeServerHost(raw: string): string {
+  return (raw || '').trim().replace(/\/+$/, '')
+}
+
 export async function getConfig(): Promise<GoMusicDlConfig> {
   try {
     const val = await (globalThis as any).songloft?.storage?.get(CONFIG_KEY)
@@ -56,6 +65,12 @@ export async function getConfig(): Promise<GoMusicDlConfig> {
         parsed.externalBaseUrl = normalizeBaseUrl(parsed.externalBaseUrl)
       } else {
         parsed.externalBaseUrl = ''
+      }
+      // 对外可达地址：可选；非字符串或空值归一为 ''，仅去空白与结尾斜杠（不补 /music）
+      if (typeof parsed.serverHost === 'string' && parsed.serverHost) {
+        parsed.serverHost = normalizeServerHost(parsed.serverHost)
+      } else {
+        parsed.serverHost = ''
       }
       return parsed
     }

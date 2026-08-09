@@ -20,6 +20,8 @@ export async function loadConfig() {
   document.getElementById('configBaseUrl').value = internal
   const extEl = document.getElementById('configExternalBaseUrl')
   if (extEl) extEl.value = external
+  const shEl = document.getElementById('configServerHost')
+  if (shEl) shEl.value = store.config.serverHost || ''
   const dq = document.getElementById('configDefaultQuality')
   if (dq) dq.value = store.config.defaultQuality || 'exhigh'
   store.currentQuality = store.config.defaultQuality || 'exhigh'
@@ -50,12 +52,15 @@ export async function saveConfig() {
   const externalBaseUrl = (
     document.getElementById('configExternalBaseUrl')?.value || ''
   ).trim()
+  const serverHost = (
+    document.getElementById('configServerHost')?.value || ''
+  ).trim()
   const sources = Array.from(
     document.querySelectorAll('#configSources input:checked'),
   ).map((cb) => cb.value)
   const defaultQuality =
     document.getElementById('configDefaultQuality').value || 'exhigh'
-  store.config = { ...store.config, baseUrl, externalBaseUrl, sources, defaultQuality }
+  store.config = { ...store.config, baseUrl, externalBaseUrl, serverHost, sources, defaultQuality }
   store.config.internalBaseUrl = baseUrl
   // 保存后立即按当前访问网络重选生效地址
   store.config.baseUrl = isExternalAccess() && externalBaseUrl ? externalBaseUrl : baseUrl
@@ -67,6 +72,7 @@ export async function saveConfig() {
     await API.saveConfig({
       baseUrl,
       externalBaseUrl,
+      serverHost,
       sources,
       defaultQuality,
       timeout: store.config.timeout || 15000,

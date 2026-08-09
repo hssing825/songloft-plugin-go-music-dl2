@@ -39,22 +39,26 @@
 
 之后对小爱说「播放 XXX」即会经 go-music-dl 搜索歌曲并通过音箱出声。
 
-### 「不入库直接播放」与桥接插件（重要）
+### 「不入库直接播放」与本插件 /stream 路由（重要）
 
 MIoT 的 `external_search_no_import` 开关开启后，会把 `topone` 返回的 `url` 原样直推给音箱播放。
-该 `url` 由本插件的 `makeBridgeUrl` 生成，**是否可用取决于是否安装了桥接插件（songloft-plugin-bridge）**：
+该 `url` 由本插件 `makeDirectStreamUrl` 直接拼出，**已不再依赖桥接插件（songloft-plugin-bridge）**：
 
-- **已安装桥接插件**：`topone` 返回桥接插件的 LAN 直链（`http://<Bridge LAN>:<端口>/.../stream/go-music-dl/<token>`）。
-  音箱连桥接插件再回源到 go-music-dl，无论 MIoT 与音源是否同网段都能播放。
-  此时开启 `external_search_no_import` 即走「不入库直推」。
-- **未安装桥接插件**：`makeBridgeUrl` 不再回退为 go-music-dl 自有直链，而是让 `url` 置空。
-  MIoT 的「直链型」判定失败，**无论 `external_search_no_import` 开关开/关，都会回退到「入库播放」**
-  （走 `source_data` + 宿主 `/api/music/url` 服务端回源，音箱连的是 Songloft 自身可达地址，必能出声）。
+- `topone` 返回形如 `http://<Songloft LAN>:<端口>/api/v1/jsplugin/go-music-dl/stream/<token>` 的直链。
+- 音箱访问该 URL → 本插件 `/stream/:token` 路由 decode token 后 **302 重定向** 到 go-music-dl 真实直链，
+  由音箱直连原生 Go 服务器拉流（支持 Range / 大文件，不经 QuickJS 缓冲避免 504）。
+- 该路由已在 `plugin.json` 的 `publicPaths` 中声明免鉴权，**要求宿主版本 ≥ 2.7.0**。
 
-> 一句话：**没装桥接插件 → 一律入库播放（保证出声）；装了桥接插件 → 不入库直推才可生效。**
-> 这样可避免「开关开着、却因缺少桥接插件而直推无声」的问题。
+**对外可达 host 推导（4 级优先级，全部失败时 url 置空 → MIoT 回退入库播放）：**
+1. `serverHost`（推荐）：用户在「插件设置 → 对外可达地址」显式填写的音箱可直连地址，覆盖反代/异网场景。
+2. `baseUrl` 的 host：go-music-dl 后端若部署在 LAN 某台机器（如 `192.168.1.190:8080`），
+   则同一台机器跑的 Songloft 也通常可达该 IP，用该 host + Songloft 端口。
+3. `getHostUrl`：宿主自身地址（非回环时可用）。
+4. 网卡 LAN 地址：上述均为回环时的兜底，取 `getNetworkAddresses()[0]` 替换回环主机。
 
-**桥接插件相关配置（如已安装）：**
-- 桥接插件需启用，并保证其 `server_host` 为局域网 IP，使音箱可直连。
-- 桥接缺失时无需任何额外操作，本插件自动降级为入库播放。
+> 一句话：**host 自动推导多数场景能 work；若宿主只监听 127.0.0.1，请在「插件设置 → 对外可达地址」
+> 填写 LAN IP（如 `http://192.168.1.190:58091`），否则直推 url 会置空，自动回退入库播放保证出声。**
+
+> v2026.8.9 之前本插件依赖 songloft-plugin-bridge 转发，现已内联实现，**无需安装桥接插件**。
+> 桥接插件项目本身仍保留（其他插件未来仍可使用）。
 
